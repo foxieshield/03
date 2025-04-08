@@ -1,9 +1,10 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Set canvas size
 canvas.width = 800;
 canvas.height = 200;
+
+let gameRunning = true;
 
 // Dino setup
 let dino = {
@@ -11,79 +12,124 @@ let dino = {
   y: 150,
   width: 40,
   height: 40,
-  color: '#333'
+  legState: 0, // For walking animation
+  color: '#333',
+  velocityY: 0,
+  gravity: 1,
+  isJumping: false
 };
 
-let isJumping = false;
-let jumpVelocity = 0;
-let dinoFrame = 0;
-let frameCount = 0;
+// Obstacle setup
+let obstacle = {
+  x: canvas.width,
+  y: 160,
+  width: 20,
+  height: 40,
+  color: '#228B22',
+  speed: 5
+};
 
-// Draw dino in different frames
+// Draw the dino with leg animation
 function drawDino() {
   ctx.fillStyle = dino.color;
 
-  // Body
-  ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
-
-  // Legs
-  if (isJumping) {
-    // Jump pose: both legs same
-    ctx.fillRect(dino.x + 5, dino.y + dino.height, 10, 10);
-    ctx.fillRect(dino.x + 25, dino.y + dino.height, 10, 10);
-  } else if (dinoFrame === 0) {
-    // Right leg short
-    ctx.fillRect(dino.x + 5, dino.y + dino.height, 10, 10);
-    ctx.fillRect(dino.x + 25, dino.y + dino.height, 10, 5);
+  if (dino.isJumping) {
+    // Legs same height when jumping
+    ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
   } else {
-    // Left leg short
-    ctx.fillRect(dino.x + 5, dino.y + dino.height, 10, 5);
-    ctx.fillRect(dino.x + 25, dino.y + dino.height, 10, 10);
+    // Animate walking legs
+    if (dino.legState % 2 === 0) {
+      ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+    } else {
+      // Fake simple leg offset
+      ctx.fillRect(dino.x, dino.y + 1, dino.width, dino.height - 2);
+    }
+    dino.legState++;
   }
 }
 
-// Handle dino jump
+// Draw the obstacle
+function drawObstacle() {
+  ctx.fillStyle = obstacle.color;
+  ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+}
+
+// Check for collision
+function checkCollision(a, b) {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
+// Handle jumping
 function handleJump() {
-  if (isJumping) {
-    dino.y += jumpVelocity;
-    jumpVelocity += 0.5; // gravity
+  if (dino.isJumping) {
+    dino.y += dino.velocityY;
+    dino.velocityY += dino.gravity;
 
     if (dino.y >= 150) {
       dino.y = 150;
-      isJumping = false;
-      jumpVelocity = 0;
+      dino.velocityY = 0;
+      dino.isJumping = false;
     }
   }
 }
 
-// Trigger jump
-function jumpStart() {
-  if (!isJumping) {
-    isJumping = true;
-    jumpVelocity = -10; // go up
-  }
-}
-
-// Handle key input
-document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' || e.code === 'ArrowUp') {
-    jumpStart();
-  }
-});
-
 // Game loop
 function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height); // clear screen
+  if (!gameRunning) return;
 
-  frameCount++;
-  if (!isJumping && frameCount % 10 === 0) {
-    dinoFrame = (dinoFrame + 1) % 2;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawDino();
+  drawObstacle();
+  handleJump();
+
+  // Move obstacle
+  obstacle.x -= obstacle.speed;
+  if (obstacle.x + obstacle.width < 0) {
+    obstacle.x = canvas.width; // Reset obstacle
   }
 
-  handleJump();
-  drawDino();
+  // Check for collision
+  if (checkCollision(dino, obstacle)) {
+    gameRunning = false;
+    showGameOver();
+    return;
+  }
 
   requestAnimationFrame(update);
 }
 
-update(); // Start game
+function showGameOver() {
+  ctx.fillStyle = 'red';
+  ctx.font = '30px Arial';
+  ctx.fillText('Game Over!', canvas.width / 2 - 80, 100);
+
+  document.getElementById('restartBtn').style.display = 'block';
+}
+
+// Restart the game
+function resetGame() {
+  dino.y = 150;
+  dino.velocityY = 0;
+  dino.isJumping = false;
+  obstacle.x = canvas.width;
+  gameRunning = true;
+  document.getElementById('restartBtn').style.display = 'none';
+  update();
+}
+
+// Handle keyboard jump
+document.addEventListener('keydown', (e) => {
+  if ((e.code === 'Space' || e.code === 'ArrowUp') && !dino.isJumping && gameRunning) {
+    dino.isJumping = true;
+    dino.velocityY = -15;
+  }
+});
+
+// Start the game
+update();
