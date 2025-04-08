@@ -1,131 +1,127 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Set canvas size
 canvas.width = 800;
 canvas.height = 200;
 
-let gameRunning = true;
-
-// 🦖 Dino setup
+// Dino starting position and size
 let dino = {
   x: 50,
   y: 150,
   width: 40,
   height: 40,
   color: '#333',
-  vy: 0,
-  gravity: 0.9,
-  jumpStrength: -15,
-  onGround: true,
-  frame: 0
+  jumpHeight: 0,
+  isJumping: false,
 };
 
-// ⬛ Obstacle setup
+// Obstacles
 let obstacles = [];
-let spawnInterval = 1500; // milliseconds
-let lastSpawnTime = 0;
+let obstacleSpeed = 3;
 
-// 🎮 Controls
-document.addEventListener('keydown', (e) => {
-  if ((e.code === 'Space' || e.code === 'ArrowUp') && dino.onGround && gameRunning) {
-    dino.vy = dino.jumpStrength;
-    dino.onGround = false;
+// Set game speed
+let gameSpeed = 1000 / 60; // 60 FPS (you can adjust this value to control game speed)
+
+// Handle key press for jump
+document.addEventListener('keydown', function (e) {
+  if ((e.key === ' ' || e.key === 'ArrowUp') && !dino.isJumping) {
+    dino.isJumping = true;
+    dino.jumpHeight = 20;
   }
 });
 
-// 🟩 Spawn a new obstacle
-function spawnObstacle() {
-  const height = 30 + Math.random() * 20;
-  const obstacle = {
-    x: canvas.width,
-    y: canvas.height - height,
-    width: 20 + Math.random() * 20,
-    height,
-    color: 'green'
-  };
-  obstacles.push(obstacle);
-}
-
-// 🛑 Collision detection
-function checkCollision(rect1, rect2) {
-  return (
-    rect1.x < rect2.x + rect2.width &&
-    rect1.x + rect1.width > rect2.x &&
-    rect1.y < rect2.y + rect2.height &&
-    rect1.y + rect1.height > rect2.y
-  );
-}
-
-// 🧹 Reset
-document.getElementById('resetBtn').addEventListener('click', () => {
-  dino.y = 150;
-  dino.vy = 0;
-  dino.onGround = true;
-  obstacles = [];
-  gameRunning = true;
-  document.getElementById('gameOver').style.display = 'none';
-  update();
-});
-
-// ✍️ Draw Dino
+// Draw the Dino with legs
 function drawDino() {
   ctx.fillStyle = dino.color;
-  ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+  // Body
+  ctx.fillRect(dino.x, dino.y - dino.jumpHeight, dino.width, dino.height);
+  
+  // Legs (simulating walking)
+  ctx.fillStyle = 'black';
+  ctx.fillRect(dino.x + 5, dino.y + 35 - dino.jumpHeight, 10, 5);
+  ctx.fillRect(dino.x + 25, dino.y + 35 - dino.jumpHeight, 10, 5);
 }
 
-// ✍️ Draw Obstacles
+// Create obstacles
+function createObstacle() {
+  let height = Math.random() * 30 + 20;
+  obstacles.push({ x: canvas.width, y: canvas.height - height, width: 20, height: height });
+}
+
+// Draw obstacles
 function drawObstacles() {
-  obstacles.forEach(obs => {
-    ctx.fillStyle = obs.color;
-    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+  ctx.fillStyle = 'black';
+  obstacles.forEach(obstacle => {
+    ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
   });
 }
 
-// 🧠 Game Loop
-function update(timestamp) {
-  if (!gameRunning) return;
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Apply gravity
-  dino.vy += dino.gravity;
-  dino.y += dino.vy;
-
-  // Ground check
-  if (dino.y + dino.height >= canvas.height) {
-    dino.y = canvas.height - dino.height;
-    dino.vy = 0;
-    dino.onGround = true;
-  }
-
-  // Spawn obstacle randomly
-  if (!lastSpawnTime || timestamp - lastSpawnTime > spawnInterval + Math.random() * 1000) {
-    spawnObstacle();
-    lastSpawnTime = timestamp;
-  }
-
-  // Move and draw obstacles
-  obstacles.forEach(obs => {
-    obs.x -= 5;
-  });
-
-  // Remove off-screen obstacles
-  obstacles = obstacles.filter(obs => obs.x + obs.width > 0);
-
-  drawDino();
-  drawObstacles();
-
-  // Check for collisions
-  for (let obs of obstacles) {
-    if (checkCollision(dino, obs)) {
-      gameRunning = false;
-      document.getElementById('gameOver').style.display = 'block';
-      return;
+// Check for collisions
+function checkCollisions() {
+  for (let i = 0; i < obstacles.length; i++) {
+    if (
+      dino.x < obstacles[i].x + obstacles[i].width &&
+      dino.x + dino.width > obstacles[i].x &&
+      dino.y + dino.height - dino.jumpHeight > obstacles[i].y
+    ) {
+      gameOver();
     }
   }
-
-  requestAnimationFrame(update);
 }
 
-// 🟢 Start game
+// Update Game State
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear screen
+  
+  if (dino.isJumping) {
+    if (dino.jumpHeight < 40) {
+      dino.jumpHeight += 2;
+    } else {
+      dino.isJumping = false;
+    }
+  } else if (dino.jumpHeight > 0) {
+    dino.jumpHeight -= 2;
+  }
+
+  // Move obstacles
+  obstacles.forEach(obstacle => {
+    obstacle.x -= obstacleSpeed;
+  });
+
+  // Remove obstacles that go off-screen
+  obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
+
+  // Draw the Dino and obstacles
+  drawDino();
+  drawObstacles();
+  checkCollisions();
+
+  // Game over
+  if (obstacles.length === 0 || obstacles[obstacles.length - 1].x < canvas.width - 200) {
+    createObstacle();
+  }
+  
+  // Next frame
+  setTimeout(update, gameSpeed);  // This controls the game speed (slower speed here)
+}
+
+// Game over state
+function gameOver() {
+  document.getElementById('gameOver').style.display = 'block';
+  document.getElementById('resetBtn').style.display = 'block';
+}
+
+// Reset the game
+function resetGame() {
+  dino.y = 150;
+  dino.jumpHeight = 0;
+  dino.isJumping = false;
+  obstacles = [];
+  document.getElementById('gameOver').style.display = 'none';
+  document.getElementById('resetBtn').style.display = 'none';
+  update(); // Start the game again
+}
+
+// Start the game loop
 update();
